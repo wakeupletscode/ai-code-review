@@ -27,9 +27,9 @@ BLOCKED_JS = re.compile(
     r"|process\.exit|process\.kill|\beval\(|new Function|\bfetch\(|import\s*\("
     r"|fs\.(?:rm|rmSync|unlink|unlinkSync|rmdir|rmdirSync|writeFile|writeFileSync|appendFile|appendFileSync))"
 )
-_NAME_RE = re.compile(r"test_(f\d+)_", re.I)
+_NAME_RE = re.compile(r"test_(f\d+)_", re.IGNORECASE)
 CATEGORIES = ["normal", "boundary", "empty", "invalid_type", "large_input", "malicious"]
-_SECRET_VAR = re.compile(r"(KEY|TOKEN|SECRET|PASSWORD|PASSWD|CREDENTIAL|AUTH)", re.I)
+_SECRET_VAR = re.compile(r"(KEY|TOKEN|SECRET|PASSWORD|PASSWD|CREDENTIAL|AUTH)", re.IGNORECASE)
 
 # Gives every Python test its own time limit (works on Windows too, unlike signal.alarm).
 CONFTEST = '''
@@ -74,7 +74,7 @@ def is_blocked(test_code: str, language: str = "python"):
 
 def count_tests(test_code: str, language: str = "python") -> int:
     pattern = r"\btest\s*\(" if language == "javascript" else r"^\s*(?:async\s+)?def\s+test_"
-    return len(re.findall(pattern, test_code, re.M))
+    return len(re.findall(pattern, test_code, re.MULTILINE))
 
 
 def _finding_id(test_name: str):
@@ -144,8 +144,8 @@ def _ensure_exports(code: str) -> str:
     """Make top-level functions importable from the test file if the code has no exports."""
     if "module.exports" in code or re.search(r"\bexports\.", code):
         return code
-    names = re.findall(r"^\s*(?:async\s+)?function\s+(\w+)", code, re.M)
-    names += re.findall(r"^\s*(?:const|let|var)\s+(\w+)\s*=\s*(?:async\s*)?(?:\(|function|\w+\s*=>)", code, re.M)
+    names = re.findall(r"^\s*(?:async\s+)?function\s+(\w+)", code, re.MULTILINE)
+    names += re.findall(r"^\s*(?:const|let|var)\s+(\w+)\s*=\s*(?:async\s*)?(?:\(|function|\w+\s*=>)", code, re.MULTILINE)
     names = list(dict.fromkeys(names))
     return code + (f"\nmodule.exports = {{ {', '.join(names)} }};\n" if names else "")
 
@@ -199,10 +199,10 @@ def run_tests(code: str, test_code: str, language: str = "python", check_blocked
 
         try:
             proc = subprocess.run(cmd, cwd=tmp, capture_output=True, text=True,
-                                  timeout=settings.sandbox_timeout, **kwargs)
+                                  check=False, timeout=settings.sandbox_timeout, **kwargs)
         except subprocess.TimeoutExpired:
             if settings.sandbox_mode == "docker":
-                subprocess.run(["docker", "kill", container], capture_output=True)
+                subprocess.run(["docker", "kill", container], capture_output=True, check=False)
             return _sandbox_row("timeout", f"Test run exceeded {settings.sandbox_timeout}s and was killed.")
         except FileNotFoundError as e:
             return _error(f"Sandbox could not start: {e}")

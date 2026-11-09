@@ -1,8 +1,9 @@
 import pytest
+
+from app import storage
 from app.agent.modes import detect_language
 from app.fix_logic import evaluate_fix
 from app.report import to_markdown
-from app import storage
 from eval import metrics
 
 

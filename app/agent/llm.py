@@ -38,11 +38,11 @@ def model_name() -> str:
 
 def extract_json(text: str):
     text = text.strip()
-    text = re.sub(r"^```(?:json)?\s*|\s*```$", "", text, flags=re.M).strip()
+    text = re.sub(r"^```(?:json)?\s*|\s*```$", "", text, flags=re.MULTILINE).strip()
     candidates = [text]
     # Try to extract a JSON object first, then a JSON array as fallback
     for pattern in (r"\{.*\}", r"\[.*\]"):
-        match = re.search(pattern, text, re.S)
+        match = re.search(pattern, text, re.DOTALL)
         if match:
             candidates.append(match.group(0))
     last = None

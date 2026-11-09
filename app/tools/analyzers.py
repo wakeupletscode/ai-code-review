@@ -23,6 +23,7 @@ def _run(cmd: list, code: str) -> str:
             stdin=subprocess.DEVNULL,
             capture_output=True,
             text=True,
+            check=False,
             timeout=60,
         )
         return proc.stdout
@@ -82,7 +83,7 @@ def run_eslint(code: str) -> list:
     try:
         proc = subprocess.run(
             [settings.node_binary, str(ESLINT), "--stdin", "--stdin-filename", "target.js", "-f", "json"],
-            input=code, capture_output=True, text=True, cwd=str(JS_DIR), timeout=60,
+            input=code, capture_output=True, text=True, cwd=str(JS_DIR), check=False, timeout=60,
         )
         data = json.loads(proc.stdout or "[]")
     except Exception:  # noqa: BLE001

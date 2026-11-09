@@ -41,6 +41,11 @@ def load_raw(path: Path) -> list:
     return [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines() if line.strip()]
 
 
+def _append_record(path: Path, rec: dict):
+    with path.open("a", encoding="utf-8") as fh:
+        fh.write(json.dumps(rec) + "\n")
+
+
 async def run_all(args, truth: dict):
     raw_path = Path(args.raw)
     raw_path.parent.mkdir(parents=True, exist_ok=True)
@@ -79,8 +84,7 @@ async def run_all(args, truth: dict):
                         rec.update({"error": str(e)[:300], "findings": [], "usage": {}, "test_stats": {},
                                     "test_coverage": {}, "fix": None,
                                     "seconds": round(time.perf_counter() - t0, 2)})
-                    with raw_path.open("a", encoding="utf-8") as fh:
-                        fh.write(json.dumps(rec) + "\n")
+                    _append_record(raw_path, rec)
                     print(f"[{rec['model']} | {mode} | run {run}] {name}: "
                           f"{'ERROR ' + rec['error'] if rec.get('error') else str(len(rec['findings'])) + ' findings'}")
                     done.add(rec_key)
@@ -99,10 +103,13 @@ def write_report(records: list, truth: dict, tol: int, out_path: Path):
     n_def = sum(len(v["defects"]) for v in truth.values())
     n_clean = sum(v["clean"] for v in truth.values())
 
+    bench_desc = (
+        f"Benchmark: {len(truth)} files ({n_clean} clean), {n_def} labelled defects. Findings are matched to "
+        f"defects by line (±{tol}); duplicates on an already-found defect are ignored; every other finding is a "
+        "false positive. Values are mean ± std (percentage points) over repeated runs."
+    )
     L = ["# Evaluation results", "",
-         f"Benchmark: {len(truth)} files ({n_clean} clean), {n_def} labelled defects. Findings are matched to "
-         f"defects by line (±{tol}); duplicates on an already-found defect are ignored; every other finding is a "
-         "false positive. Values are mean ± std (percentage points) over repeated runs.", "",
+         bench_desc, "",
          "## Detection by pipeline variant", "",
          "| Model | Mode | Runs | Precision | Recall | F1 | Confirmed by tests* | Clean files with a false alarm |",
          "|---|---|---|---|---|---|---|---|"]
@@ -151,8 +158,9 @@ def write_report(records: list, truth: dict, tol: int, out_path: Path):
             f = s["fix"]
             L.append(f"| {k[0]} | {f['attempted']} | {f['verified_rate'] * 100:.0f}% | "
                      f"{f['avg_score_before']:.0f} | {f['avg_score_after']:.0f} |")
-        L += ["", "Verified = at least one failing test now passes, none of the originally failing tests still fails, "
-              "and no previously passing test broke."]
+        L += ["",
+              ("Verified = at least one failing test now passes, none of the originally failing tests still fails, "
+               "and no previously passing test broke.")]
     errs = sum(s["errors"] for s in summ.values())
     if errs:
         L += ["", f"_{errs} reviews failed with an error and are excluded; see the `error` field in the raw file._"]

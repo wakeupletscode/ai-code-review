@@ -14,7 +14,7 @@ def flags(state) -> dict:
 
 
 _JS = re.compile(r"\b(function|const|let|var)\b|=>|console\.|require\(|module\.exports")
-_PY = re.compile(r"^\s*(def |class |import |from \w+ import )|:\s*$|\bself\b|\bNone\b|\bTrue\b", re.M)
+_PY = re.compile(r"^\s*(def |class |import |from \w+ import )|:\s*$|\bself\b|\bNone\b|\bTrue\b", re.MULTILINE)
 
 
 def detect_language(code: str) -> str:

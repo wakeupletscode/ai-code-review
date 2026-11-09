@@ -22,7 +22,7 @@ def syntax_error(code: str, language: str = "python"):
         path.write_text(code, encoding="utf-8")
         try:
             proc = subprocess.run([settings.node_binary, "--check", str(path)],
-                                  capture_output=True, text=True, timeout=20)
+                                  capture_output=True, text=True, check=False, timeout=20)
         except (FileNotFoundError, subprocess.TimeoutExpired):
             return None  # cannot check without Node; the sandbox run will report real problems
         if proc.returncode == 0:

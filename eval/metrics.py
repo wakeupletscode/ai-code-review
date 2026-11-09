@@ -96,7 +96,7 @@ def summarise(records: list, truth: dict, tol: int = 2) -> dict:
 
     staged = [r for r in ok if r["test_stats"].get("attempts")]
     if staged:
-        ts = lambda k: sum(r["test_stats"].get(k, 0) for r in staged)  # noqa: E731
+        ts = lambda k: sum(r["test_stats"].get(k, 0) for r in staged)
         out["tests"] = {
             "reviews_with_tests": len(staged),
             "retry_rate": sum(r["test_stats"].get("retries", 0) > 0 for r in staged) / len(staged),

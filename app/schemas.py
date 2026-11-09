@@ -1,4 +1,4 @@
-from typing import Literal, Optional
+from typing import Literal
 
 from pydantic import BaseModel, Field
 
@@ -23,12 +23,12 @@ class ReviewRequest(BaseModel):
     mode: Mode = "full"
     language: Literal["auto", "python", "javascript"] = "auto"
     verify_fix: bool = True
-    file_name: Optional[str] = None   # set it to enable regression mode (compare with last review)
+    file_name: str | None = None   # set it to enable regression mode (compare with last review)
 
 
 class Finding(BaseModel):
     id: str
-    line: Optional[int] = None
+    line: int | None = None
     severity: Severity = "medium"
     category: str = "bug"          # bug | security | maintainability | performance
     title: str
@@ -37,13 +37,13 @@ class Finding(BaseModel):
     failure_scenario: str = ""     # a concrete input that triggers the problem
     fix: str = ""
     source: str = "llm"            # llm | bandit | ruff | eslint
-    verdict: Optional[str] = None  # confirmed | suspected
+    verdict: str | None = None  # confirmed | suspected
 
 
 class TestResult(BaseModel):
     __test__ = False  # stop pytest collecting this class
     name: str
-    finding_id: Optional[str] = None
+    finding_id: str | None = None
     category: str = "normal"       # normal | boundary | empty | invalid_type | large_input | malicious
     status: Literal["passed", "failed", "error", "timeout"]
     message: str = ""
@@ -87,11 +87,11 @@ class ReviewResponse(BaseModel):
     test_code: str = ""
     test_stats: dict[str, int] = {}
     test_coverage: dict[str, int] = {}
-    fix: Optional[FixReport] = None
-    regression: Optional[RegressionReport] = None
+    fix: FixReport | None = None
+    regression: RegressionReport | None = None
     static_counts: dict[str, int] = {}
     rag_sources: list[str] = []
     timings: dict[str, float] = {}
     usage: dict[str, int] = {}
     warnings: list[str] = []
-    review_id: Optional[int] = None
+    review_id: int | None = None

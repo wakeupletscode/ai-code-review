@@ -23,8 +23,11 @@ def to_markdown(r: dict, code: str = "") -> str:
         out.append("No issues reported.")
     for f in findings:
         sev_icon = _SEV_ICON.get(f.get("severity", "medium"), "")
-        out += [f"### {f['id']} · {sev_icon} {f['severity'].upper()} · {_ICON.get(f.get('verdict'), f.get('verdict') or '')} · "
-                f"line {f.get('line')}", f"**{f['title']}** ({f['category']}, source: {f['source']})", ""]
+        title_line = (
+            f"### {f['id']} · {sev_icon} {f['severity'].upper()} · "
+            f"{_ICON.get(f.get('verdict'), f.get('verdict') or '')} · line {f.get('line')}"
+        )
+        out += [title_line, f"**{f['title']}** ({f['category']}, source: {f['source']})", ""]
         if f.get("snippet"):
             out += [f"```{language}", f["snippet"], "```", ""]
         if f.get("explanation"):

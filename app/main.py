@@ -1,6 +1,5 @@
 from contextlib import asynccontextmanager
 from pathlib import Path
-from typing import Optional
 
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
@@ -66,7 +65,7 @@ async def review(req: ReviewRequest):
 
 class ReportRequest(BaseModel):
     review: ReviewResponse
-    code: Optional[str] = ""
+    code: str | None = ""
 
 
 @app.post("/report", response_class=PlainTextResponse)
