@@ -7,7 +7,8 @@ Built with FastAPI, LangGraph, ChromaDB (RAG), an MCP tool server (bandit, ruff,
 (local Ollama, Groq, Google Gemini, OpenAI or Anthropic).
 
 > **New here?** Read the step-by-step [HOW_TO_RUN.md](HOW_TO_RUN.md) guide (setup on Windows/macOS/Linux,
-> choosing an LLM, using the web page, troubleshooting, and pushing to GitHub).
+> choosing an LLM, using the web page, troubleshooting, and pushing to GitHub) and [CHANGES.md](CHANGES.md)
+> for a full engineering log of all bug fixes and improvements made to the original project.
 
 ## Features
 
