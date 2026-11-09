@@ -62,10 +62,16 @@
     return sum(numbers) / len(numbers)
 </textarea>
     <div class="row">
+      <label>Example <select id="preset">
+        <option value="avg">Division by zero (Python)</option>
+        <option value="sec">Security &amp; lint bugs (Python)</option>
+        <option value="sql">SQL injection &amp; shell (Python)</option>
+        <option value="js">Eval &amp; loose equality (JavaScript)</option>
+      </select></label>
       <label>Language <select id="language"><option value="auto">auto-detect</option><option>python</option><option>javascript</option></select></label>
       <label>Mode <select id="mode"><option value="full">full (tools + RAG + tests)</option><option value="llm_static">LLM + static tools</option><option value="llm_only">LLM only</option><option value="static_only">static tools only</option></select></label>
       <label><input type="checkbox" id="fix" checked> verify a fix</label>
-      <label>File name (regression) <input type="text" id="file" placeholder="optional, e.g. utils.py" size="20"></label>
+      <label>File name (regression) <input type="text" id="file" placeholder="optional, e.g. utils.py" size="18"></label>
       <button class="primary" id="go" title="Ctrl+Enter">Review code</button>
       <span class="muted" id="status"></span>
     </div>
@@ -79,7 +85,7 @@ const $ = id => document.getElementById(id);
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 let last = null, lastCode = "", timer = null;
 
-// Show which LLM is configured and warn early about a missing API key.
+// Show which LLM is configured and warn early about a missing API key or unreachable Ollama.
 fetch("/health").then(r => r.json()).then(h => {
   $("llm").textContent = `LLM: ${h.llm_provider} · ${h.model || "default model"} · sandbox: ${h.sandbox}`;
   if (h.llm_issue) {
@@ -87,6 +93,17 @@ fetch("/health").then(r => r.json()).then(h => {
     $("llm-warn").classList.remove("hidden");
   }
 }).catch(() => { $("llm").textContent = "Could not reach the server."; });
+
+const PRESETS = {
+  avg: { lang: "auto", code: "def average(numbers):\n    return sum(numbers) / len(numbers)\n" },
+  sec: { lang: "python", code: "def process(expr, items=[]):\n    items.append(expr)\n    return eval(expr)\n" },
+  sql: { lang: "python", code: "import subprocess\n\ndef find_user(cursor, name):\n    query = f\"SELECT * FROM users WHERE name = '{name}'\"\n    cursor.execute(query)\n    subprocess.call(f\"echo {name}\", shell=True)\n    return cursor.fetchall()\n" },
+  js:  { lang: "javascript", code: "function checkUser(input, role) {\n  if (role == 'admin') {\n    return eval(input);\n  }\n  return false;\n}\n" }
+};
+$("preset").onchange = e => {
+  const p = PRESETS[e.target.value];
+  if (p) { $("code").value = p.code; $("language").value = p.lang; }
+};
 
 // Ctrl+Enter submits; Tab indents instead of leaving the editor.
 $("code").addEventListener("keydown", e => {

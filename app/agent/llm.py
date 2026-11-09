@@ -3,7 +3,9 @@ import contextvars
 import hashlib
 import json
 import re
+import socket
 from pathlib import Path
+from urllib.parse import urlparse
 
 from app.core.config import settings
 
@@ -65,15 +67,29 @@ _KEY_FIELDS = {"groq": "groq_api_key", "gemini": "gemini_api_key",
                "openai": "openai_api_key", "anthropic": "anthropic_api_key"}
 
 
+def _ollama_reachable() -> bool:
+    parsed = urlparse(settings.ollama_base_url)
+    host = parsed.hostname or "127.0.0.1"
+    if host == "localhost":
+        host = "127.0.0.1"
+    port = parsed.port or (443 if parsed.scheme == "https" else 80)
+    try:
+        with socket.create_connection((host, port), timeout=0.25):
+            return True
+    except OSError:
+        return False
+
+
 def provider_problem():
-    """Return a human-readable configuration problem with the LLM provider, or None if it looks usable.
-    (Ollama cannot be checked here without a network call; connection errors are explained when they happen.)"""
+    """Return a human-readable configuration problem with the LLM provider, or None if it looks usable."""
     provider = settings.llm_provider
     if provider not in DEFAULT_MODELS:
         return f"Unknown LLM_PROVIDER '{provider}'. Use one of: {', '.join(DEFAULT_MODELS)}."
     field = _KEY_FIELDS.get(provider)
     if field and not getattr(settings, field):
         return f"LLM_PROVIDER={provider} needs {field.upper()} to be set in .env."
+    if provider == "ollama" and not _ollama_reachable():
+        return _connection_hint("ollama")
     return None
 
 
@@ -114,7 +130,7 @@ async def _complete(system: str, user: str) -> tuple:
         client = AsyncOpenAI(api_key=settings.gemini_api_key,
                              base_url="https://generativelanguage.googleapis.com/v1beta/openai/")
     elif provider == "ollama":
-        client = AsyncOpenAI(api_key="ollama", base_url=settings.ollama_base_url)
+        client = AsyncOpenAI(api_key="ollama", base_url=settings.ollama_base_url, max_retries=0)
     else:  # openai
         client = AsyncOpenAI(api_key=settings.openai_api_key)
     try:
