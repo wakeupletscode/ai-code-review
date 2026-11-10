@@ -1,8 +1,9 @@
-"""Generate tests for the reported findings. Rejected output (syntax error, forbidden calls) is retried
-once with feedback; the LangGraph loop in graph.py drives the retry."""
+"""Generate tests for the reported findings. Rejected output (syntax error, forbidden calls, failed quality gate)
+is retried once with feedback; the LangGraph loop in graph.py drives the retry."""
 from app.agent.llm import complete_json
 from app.agent.nodes.common import number_lines, timed
 from app.sandbox.runner import count_tests, is_blocked
+from app.test_quality import check_tests
 from app.tools.syntax import syntax_error
 
 CATEGORY_RULES = """- Name every test test_<finding_id>_<category>_<short_description>, where category is one of:
@@ -52,7 +53,7 @@ Rules:
 
 
 def new_stats() -> dict:
-    return {"attempts": 0, "syntax_errors": 0, "blocked": 0, "timeouts": 0, "retries": 0,
+    return {"attempts": 0, "syntax_errors": 0, "blocked": 0, "low_quality": 0, "timeouts": 0, "retries": 0,
             "discarded_unparseable": 0, "generated": 0}
 
 
@@ -69,6 +70,8 @@ async def test_gen_node(state):
     findings = [f for f in state.get("findings", []) if f["severity"] != "info"][:8]
     listing = "\n".join(
         f"- {f['id']} (line {f['line']}, {f['category']}, {f['severity']}): {f['title']} -- {f['explanation']}"
+        + (f" | triggered by: {f['failure_scenario']}" if f.get("failure_scenario") else "")
+        + (f" | expected fix: {f['fix']}" if f.get("fix") else "")
         for f in findings)
     user = f"CODE (module `target`):\n{number_lines(state['code'])}\n\nFINDINGS:\n{listing}"
     if feedback:
@@ -91,7 +94,14 @@ async def test_gen_node(state):
             issue = f"it uses a forbidden call or module ({bad.strip()[:40]}); do not use it"
             stats["blocked"] += 1
         else:
-            test_code = candidate
+            problem, info = check_tests(candidate, state["code"], language, [f["id"] for f in findings])
+            stats["findings_covered"] = info["findings_covered"]
+            stats["findings_total"] = info["findings_total"]
+            if problem:
+                issue = problem
+                stats["low_quality"] += 1
+            else:
+                test_code = candidate
         if issue and candidate:
             stats["discarded_unparseable"] += count_tests(candidate, language)
     except Exception as e:  # noqa: BLE001

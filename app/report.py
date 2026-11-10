@@ -40,15 +40,18 @@ def to_markdown(r: dict, code: str = "") -> str:
     tests = [t for t in r.get("tests", []) if t["name"] != "sandbox"]
     out += ["## Generated tests", ""]
     if tests:
-        out += ["| Test | Finding | Category | Result |", "|---|---|---|---|"]
-        out += [f"| {_cell(t['name'])} | {t.get('finding_id') or '-'} | {t['category']} | {t['status']} |" for t in tests]
+        out += ["| Test | Finding | Category | Result | Evidence |", "|---|---|---|---|---|"]
+        out += [f"| {_cell(t['name'])} | {t.get('finding_id') or '-'} | {t['category']} | {t['status']} | "
+                f"{t.get('evidence') or '-'} |" for t in tests]
         out += ["", f"Coverage by category: {r.get('test_coverage')}", f"Generation stats: {r.get('test_stats')}"]
     else:
         out.append("No tests were run.")
 
     if fix.get("attempted"):
+        pob = f"- Proof-of-Bug (counterfactual): **{bool(fix.get('proof_of_bug'))}** (killed by: {fix.get('counterfactual_killed') or []})"
         out += ["", "## Fix verification", "",
                 f"- Verified: **{fix.get('verified')}** {('(' + fix['reason'] + ')') if fix.get('reason') else ''}",
+                pob,
                 f"- Tests before: {fix.get('before')}  →  after: {fix.get('after')}",
                 f"- Fixed tests: {fix.get('fixed_tests')}", f"- Still failing: {fix.get('still_failing')}",
                 f"- Regressions: {fix.get('regressions')}",

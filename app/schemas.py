@@ -46,12 +46,15 @@ class TestResult(BaseModel):
     finding_id: str | None = None
     category: str = "normal"       # normal | boundary | empty | invalid_type | large_input | malicious
     status: Literal["passed", "failed", "error", "timeout"]
+    evidence: str = ""             # assertion | target_exception | test_error | sandbox_blocked | timeout
     message: str = ""
 
 
 class FixReport(BaseModel):
     attempted: bool = False
-    verified: bool = False         # strict: some test fixed, none still failing, none regressed
+    verified: bool = False         # strict: some test fixed, none still failing, none regressed, no new static issues
+    proof_of_bug: bool = False     # counterfactual: disabling the fix's guard re-triggers the reproduction test
+    counterfactual_killed: list[str] = []
     reason: str = ""
     fixed_code: str = ""
     before: dict[str, int] = {}

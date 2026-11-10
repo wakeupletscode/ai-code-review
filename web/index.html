@@ -167,9 +167,9 @@ function render(r) {
   const tests = r.tests.filter(t => t.name !== "sandbox");
   h += `<section class="card"><h2>Generated tests</h2>`;
   if (tests.length) {
-    h += `<table><tr><th>Test</th><th>Finding</th><th>Category</th><th>Result</th><th>Message</th></tr>` +
+    h += `<table><tr><th>Test</th><th>Finding</th><th>Category</th><th>Result</th><th>Evidence</th><th>Message</th></tr>` +
       tests.map(t => `<tr><td>${esc(t.name)}</td><td>${esc(t.finding_id || "–")}</td><td>${esc(t.category)}</td>
-        <td class="${esc(t.status)}">${esc(t.status)}</td><td class="muted">${esc(t.message)}</td></tr>`).join("") + `</table>
+        <td class="${esc(t.status)}">${esc(t.status)}</td><td class="muted">${esc(t.evidence || "–")}</td><td class="muted">${esc(t.message)}</td></tr>`).join("") + `</table>
       <p class="muted">Coverage by category: ${counts(r.test_coverage)}<br>Generation: ${counts(r.test_stats)}</p>`;
     if (r.test_code) {
       h += `<details><summary>View generated test code</summary><pre>${esc(r.test_code)}</pre></details>`;
@@ -182,9 +182,9 @@ function render(r) {
   h += `</section>`;
 
   if (fix) {
-    h += `<section class="card"><h2>Fix verification <span class="chip ${fix.verified ? "green" : "amber"}">${fix.verified ? "✓ verified" : "not fully verified"}</span></h2>
+    h += `<section class="card"><h2>Fix verification <span class="chip ${fix.verified ? "green" : "amber"}">${fix.verified ? "✓ verified" : "not fully verified"}</span>${fix.proof_of_bug ? ` <span class="chip green" title="Disabling the patch guard re-triggers the reproduction test">🛡️ Proof-of-Bug</span>` : ""}</h2>
       <div>Tests before: ${counts(fix.before)} → after: ${counts(fix.after)}</div>
-      <div class="muted">Fixed: ${esc((fix.fixed_tests||[]).join(", ")) || "–"} · Still failing: ${esc((fix.still_failing||[]).join(", ")) || "–"} · Regressions: ${esc((fix.regressions||[]).join(", ")) || "–"} · Static issues ${fix.static_issues_before} → ${fix.static_issues_after}</div>
+      <div class="muted">Fixed: ${esc((fix.fixed_tests||[]).join(", ")) || "–"} · Counterfactual killed: ${esc((fix.counterfactual_killed||[]).join(", ")) || "–"} · Still failing: ${esc((fix.still_failing||[]).join(", ")) || "–"} · Regressions: ${esc((fix.regressions||[]).join(", ")) || "–"} · Static issues ${fix.static_issues_before} → ${fix.static_issues_after}</div>
       ${fix.reason ? `<div class="warn">${esc(fix.reason)}</div>` : ""}
       ${fix.fixed_code ? `<details><summary>View fixed code</summary><pre>${esc(fix.fixed_code)}</pre></details><button class="no-print" id="copy" style="margin-top:8px">📋 Copy fixed code</button>` : ""}</section>`;
   }

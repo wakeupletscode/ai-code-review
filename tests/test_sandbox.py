@@ -84,3 +84,23 @@ def test_javascript_syntax_check():
     assert syntax_error("function f( {", "javascript")
     assert syntax_error("function f() { return 1; }", "javascript") is None
     assert syntax_error("def f(:", "python")
+
+
+def test_submitted_code_is_blocked_from_network_and_host_files():
+    hostile_code = (
+        "import socket\n"
+        "def steal():\n"
+        "    return open('C:/Windows/win.ini').read()\n"
+        "def call_out():\n"
+        "    return socket.create_connection(('1.1.1.1', 53), timeout=1)\n"
+    )
+    tests = (
+        "import target\n"
+        "def test_f1_steal():\n"
+        "    assert target.steal() == ''\n"
+        "def test_f1_net():\n"
+        "    assert target.call_out() is None\n"
+    )
+    res = {r["name"]: r for r in run_tests(hostile_code, tests)}
+    assert res["test_f1_steal"]["evidence"] == "sandbox_blocked"
+    assert res["test_f1_net"]["evidence"] == "sandbox_blocked"

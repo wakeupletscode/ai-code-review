@@ -17,6 +17,8 @@ async def test_full_pipeline_confirms_defect_and_verifies_fix(install_llm):
 
     fix = res["fix"]
     assert fix["verified"] is True and fix["fixed_tests"] == ["test_f1_empty_list_raises_value_error"]
+    assert fix["proof_of_bug"] is True
+    assert fix["counterfactual_killed"] == ["test_f1_empty_list_raises_value_error"]
     assert fix["regressions"] == [] and fix["still_failing"] == []
     assert fix["score_before"] == 94 and fix["score_after"] == 100
     assert fake.calls == ["review", "tests", "fix"]
@@ -108,3 +110,28 @@ async def test_missing_api_key_gives_a_clear_message(monkeypatch):
     assert any("GROQ_API_KEY" in w for w in res["warnings"])
     monkeypatch.setattr(settings, "llm_provider", "nonsense")
     assert "Unknown LLM_PROVIDER" in provider_problem()
+
+
+async def test_static_findings_preserved_when_llm_omits_them(install_llm):
+    # Bandit/Ruff find `eval`, even if the LLM returns an empty findings list
+    install_llm(review={"summary": "Looks fine.", "quality_score": 100, "findings": []}, tests=[GOOD_TESTS])
+    res = await run_review("def run(x):\n    return eval(x)\n", "llm_static", "python", False)
+    assert any(f["source"] in ("bandit", "ruff") for f in res["findings"])
+
+
+async def test_quality_gate_rejects_assertionless_or_wrong_target_tests(install_llm):
+    no_assert = "import target\n\ndef test_f1_normal_call():\n    target.average([1, 2])\n"
+    fake = install_llm(review=REVIEW, tests=[no_assert, GOOD_TESTS], fix=FIXED)
+    res = await run_review(BUGGY, "full", "python", False)
+    assert res["test_stats"]["low_quality"] == 1 and res["test_stats"]["retries"] == 1
+    assert fake.calls.count("tests") == 2 and res["findings"][0]["verdict"] == "confirmed"
+
+
+async def test_broken_test_error_does_not_confirm_finding(install_llm):
+    # Calling average(1, 2, 3) fails inside test_target.py with TypeError (test_error), not inside target.py
+    bad_call = "import target\n\ndef test_f1_normal_wrong_arity():\n    assert target.average(1, 2, 3) == 2\n"
+    install_llm(review=REVIEW, tests=[bad_call])
+    res = await run_review(BUGGY, "full", "python", True)
+    assert res["tests"][0]["evidence"] == "test_error"
+    assert res["findings"][0]["verdict"] == "suspected"
+    assert res["fix"]["attempted"] is False

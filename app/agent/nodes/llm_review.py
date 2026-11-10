@@ -1,4 +1,5 @@
 import json
+import re
 
 from app.agent.llm import complete_json
 from app.agent.modes import flags
@@ -51,11 +52,38 @@ def _from_static(static: list, code: str) -> list:
     return out
 
 _SOURCES = {"llm", "bandit", "ruff", "eslint"}
+_WORD = re.compile(r"[a-z]{3,}")
+_STOP = {"the", "and", "for", "use", "used", "with", "this", "that", "not", "can", "may", "possible", "detected",
+         "issue", "code", "function", "value", "line", "should", "consider"}
 
 
 def _source(value) -> str:
     value = str(value or "llm").strip().lower()
     return value if value in _SOURCES else "llm"
+
+
+def _words(*parts) -> set:
+    return {w for p in parts for w in _WORD.findall(str(p or "").lower())} - _STOP
+
+
+def _covers(f: dict, s: dict) -> bool:
+    """Does the LLM finding `f` describe the same problem as the static finding `s`?"""
+    fl, sl = f.get("line"), s.get("line")
+    if fl is None or sl is None or abs(fl - sl) > 1:
+        return False
+    if f.get("source") == s.get("source") or f.get("category") == s.get("category"):
+        return True
+    return bool(_words(f.get("title"), f.get("explanation")) & _words(s.get("title"), s.get("explanation")))
+
+
+def merge_static(findings: list, static: list, code: str) -> list:
+    """Deterministic merge: every static-tool finding the LLM did not cover is kept, so a real tool result
+    (for example a hardcoded password found by bandit) can never disappear from the final review."""
+    merged = list(findings)
+    for s in _from_static(static, code):
+        if not any(_covers(f, s) for f in merged):
+            merged.append({**s, "id": f"f{len(merged) + 1}"})
+    return merged
 
 
 @timed("llm_review")
@@ -92,6 +120,7 @@ async def llm_review_node(state):
             ).model_dump())
         except Exception:  # noqa: BLE001
             warnings.append(f"Skipped a malformed finding: {raw}")
+    findings = merge_static(findings, static, state["code"])
     score = _to_int(data.get("quality_score")) or 0
     return {"findings": findings, "summary": data.get("summary", ""),
             "quality_score": max(0, min(100, score)), "warnings": warnings}

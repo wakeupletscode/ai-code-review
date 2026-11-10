@@ -39,21 +39,31 @@ def model_name() -> str:
 
 
 def extract_json(text: str):
-    text = text.strip()
-    text = re.sub(r"^```(?:json)?\s*|\s*```$", "", text, flags=re.MULTILINE).strip()
-    candidates = [text]
-    # Try to extract a JSON object first, then a JSON array as fallback
-    for pattern in (r"\{.*\}", r"\[.*\]"):
-        match = re.search(pattern, text, re.DOTALL)
-        if match:
-            candidates.append(match.group(0))
-    last = None
-    for cand in candidates:
-        for variant in (cand, _repair_escapes(cand)):
+    """Parse the first complete JSON value in a model reply.
+
+    Handles code fences, prose before/after the JSON, several JSON blocks in one reply, nested objects and
+    braces inside strings: json.JSONDecoder.raw_decode reads exactly one value from each candidate start
+    position, so `{"a": 1} text {"b": 2}` yields {"a": 1} instead of an invalid greedy match.
+    An object is preferred over an array."""
+    text = re.sub(r"^```(?:json)?\s*|\s*```$", "", text.strip(), flags=re.MULTILINE).strip()
+    decoder = json.JSONDecoder()
+    last = json.JSONDecodeError("no JSON found", text, 0)
+    for variant in dict.fromkeys((text, _repair_escapes(text))):
+        first_array = None
+        for i, ch in enumerate(variant):
+            if ch not in "{[":
+                continue
             try:
-                return json.loads(variant)
+                value, _ = decoder.raw_decode(variant, i)
             except json.JSONDecodeError as e:
                 last = e
+                continue
+            if isinstance(value, dict):
+                return value
+            if first_array is None:
+                first_array = value
+        if first_array is not None:
+            return first_array
     raise last
 
 
@@ -122,7 +132,7 @@ async def _complete(system: str, user: str) -> tuple:
         text = "".join(b.text for b in resp.content if b.type == "text")
         return text, resp.usage.input_tokens, resp.usage.output_tokens
 
-    from openai import APIConnectionError, AsyncOpenAI
+    from openai import APIConnectionError, AsyncOpenAI, BadRequestError
 
     if provider == "groq":
         client = AsyncOpenAI(api_key=settings.groq_api_key, base_url="https://api.groq.com/openai/v1")
@@ -133,11 +143,13 @@ async def _complete(system: str, user: str) -> tuple:
         client = AsyncOpenAI(api_key="ollama", base_url=settings.ollama_base_url, max_retries=0)
     else:  # openai
         client = AsyncOpenAI(api_key=settings.openai_api_key)
+    request = {"model": model_name(), "temperature": 0.1,
+               "messages": [{"role": "system", "content": system}, {"role": "user", "content": user}]}
     try:
-        resp = await client.chat.completions.create(
-            model=model_name(), temperature=0.1,
-            messages=[{"role": "system", "content": system}, {"role": "user", "content": user}],
-        )
+        try:  # ask for native JSON mode; a provider/model that does not support it gets a plain request
+            resp = await client.chat.completions.create(**request, response_format={"type": "json_object"})
+        except BadRequestError:
+            resp = await client.chat.completions.create(**request)
     except APIConnectionError as e:
         raise ConnectionError(_connection_hint(provider)) from e
     usage = getattr(resp, "usage", None)
@@ -170,6 +182,9 @@ async def complete_json(system: str, user: str, retries: int = 2) -> dict:
             data = extract_json(raw)
         except Exception as e:  # noqa: BLE001
             last_err = e
+            continue
+        if not isinstance(data, dict):
+            last_err = ValueError("expected a JSON object, got a list")
             continue
         if settings.llm_cache:
             try:

@@ -30,6 +30,17 @@ def test_fix_verified_only_when_all_checks_hold():
 def test_language_detection():
     assert detect_language("def f(x):\n    return x\n") == "python"
     assert detect_language("const a = (x) => x;\nconsole.log(a(1));") == "javascript"
+    assert detect_language("function calculate(x) {\n    return x * 2;\n}") == "javascript"
+    assert detect_language("def msg():\n    return 'function const let var => console.log'\n") == "python"
+    assert detect_language("x = 1", "script.js") == "javascript"
+    assert detect_language("x = 1", "module.py") == "python"
+
+
+def test_extract_json_handles_multiple_objects_and_prose():
+    from app.agent.llm import extract_json
+    raw = 'Here is the result:\n\n{"findings": [{"line": 1}], "quality_score": 90}\n\nExtra note:\n\n{"other": 2}'
+    parsed = extract_json(raw)
+    assert parsed == {"findings": [{"line": 1}], "quality_score": 90}
 
 
 def test_line_matching_rules():

@@ -51,7 +51,7 @@ async def health():
 async def review(req: ReviewRequest):
     if len(req.code) > settings.max_code_chars:
         raise HTTPException(413, f"Code too long (max {settings.max_code_chars} characters).")
-    language = detect_language(req.code) if req.language == "auto" else req.language
+    language = detect_language(req.code, req.file_name) if req.language == "auto" else req.language
     previous = storage.last_review(req.file_name) if req.file_name else None
 
     result = await run_review(req.code, req.mode, language, req.verify_fix)

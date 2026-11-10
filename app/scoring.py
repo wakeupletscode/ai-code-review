@@ -18,17 +18,27 @@ def score_breakdown(findings: list) -> tuple:
 
 
 # Errors that mean the GENERATED TEST is broken, not that the reviewed code is wrong.
+# Only used for results that carry no "evidence" classification (for example older stored results).
 TEST_BUG_MARKERS = ("NameError", "ImportError", "ModuleNotFoundError", "SyntaxError", "AttributeError: module 'target'")
+# A failing test proves a defect only when it failed on an assertion or crashed inside the reviewed code.
+VALID_EVIDENCE = ("assertion", "target_exception")
+
+
+def is_evidence(r: dict) -> bool:
+    """True if this test result is real evidence that its finding is a defect."""
+    if not r.get("finding_id") or r.get("status") not in ("failed", "error"):
+        return False
+    evidence = r.get("evidence")
+    if not evidence:  # unclassified result: fall back to the known test-bug markers
+        return not any(marker in r.get("message", "") for marker in TEST_BUG_MARKERS)
+    return evidence in VALID_EVIDENCE
 
 
 def failing_tests_by_finding(results: list) -> dict:
-    """finding id -> names of its tests that failed or crashed on the code.
-    Tests broken by their own mistakes (missing import, wrong name) are excluded: they prove nothing."""
+    """finding id -> names of its tests that prove the defect (assertion failure or crash in the reviewed code).
+    Tests that broke because of their own mistakes, the sandbox or a timeout prove nothing and are excluded."""
     out = {}
     for r in results:
-        if not r.get("finding_id") or r["status"] not in ("failed", "error"):
-            continue
-        if any(marker in r.get("message", "") for marker in TEST_BUG_MARKERS):
-            continue
-        out.setdefault(r["finding_id"], []).append(r["name"])
+        if is_evidence(r):
+            out.setdefault(r["finding_id"], []).append(r["name"])
     return out

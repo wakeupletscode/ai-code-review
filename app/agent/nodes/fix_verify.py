@@ -4,7 +4,7 @@ import asyncio
 from app.agent.llm import complete_json
 from app.agent.modes import flags
 from app.agent.nodes.common import number_lines, timed
-from app.fix_logic import evaluate_fix
+from app.fix_logic import counterfactual_mutant, evaluate_fix
 from app.sandbox.runner import run_tests
 from app.schemas import FixReport
 from app.scoring import failing_tests_by_finding
@@ -63,10 +63,27 @@ async def fix_verify_node(state):
         return {"fix": FixReport(attempted=True, fixed_code=fixed,
                                  reason=f"Tests could not run on the fixed code: {after[0]['message']}").model_dump()}
 
-    ev = evaluate_fix(results, after, findings)
+    static_before = len([s for s in state.get("static_findings", []) if s.get("severity") != "info"])
+    static_after = await asyncio.to_thread(_static_count, fixed, language) if flags(state)["static"] else 0
+
+    # Counterfactual Proof-of-Bug check: disable the patch's guard (or revert the hunk) and verify the test fails again
+    prelim = evaluate_fix(results, after, findings, static_before, static_after)
+    cf_results = None
+    if prelim["verified"]:
+        mutant = counterfactual_mutant(code, fixed, language)
+        if mutant.strip() == code.strip():
+            cf_results = results
+        else:
+            cf_results = await asyncio.to_thread(run_tests, mutant, state["test_code"], language)
+
+    ev = evaluate_fix(results, after, findings, static_before, static_after, cf_results)
+    if ev["verified"]:
+        reason = ""
+    elif static_after > static_before:
+        reason = f"Fix introduced new static analysis issues ({static_before} -> {static_after})."
+    else:
+        reason = "Not all checks passed (see lists)."
     report = FixReport(
-        attempted=True, fixed_code=fixed, reason="" if ev["verified"] else "Not all checks passed (see lists).",
-        static_issues_before=len([s for s in state.get("static_findings", []) if s.get("severity") != "info"]),
-        static_issues_after=await asyncio.to_thread(_static_count, fixed, language) if flags(state)["static"] else 0,
-        **ev)
+        attempted=True, fixed_code=fixed, reason=reason,
+        static_issues_before=static_before, static_issues_after=static_after, **ev)
     return {"fix": report.model_dump()}

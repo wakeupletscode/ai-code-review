@@ -12,16 +12,15 @@ Built with FastAPI, LangGraph, ChromaDB (RAG), an MCP tool server (bandit, ruff,
 
 ## Features
 
-- **Line-level findings** with the exact source line, a failure scenario and a suggested fix.
-- **Confirmed vs. suspected.** A finding is confirmed only when a generated test fails or crashes on the code.
-- **Fix verification.** The corrected code is tested against the same tests. A fix counts as verified only if a failing
-  test now passes, none still fail, and no passing test breaks.
-- **Generated edge-case tests** for normal, boundary, empty, invalid-type and malicious inputs, with a retry when
-  the generated tests are invalid.
-- **Python and JavaScript** support.
+- **Line-level findings** with the exact source line, a failure scenario and a suggested fix, combining static analysis (`bandit`, `ruff`, `ESLint`) with LLM review via deterministic deduplication so tool findings are never dropped.
+- **Evidence-classified defect confirmation.** Every test failure is classified (`assertion`, `target_exception`, `test_error`, `sandbox_blocked`, `timeout`). A finding is marked **confirmed** only when a test fails on an assertion or crashes inside the reviewed code—never when a generated test itself is broken.
+- **Test quality gate (`app/test_quality.py`).** Before execution, generated tests are checked for AST syntax, finding linkage, `target` calls to existing functions, and real assertions/expected-exception checks; low-quality tests are rejected and retried with specific feedback.
+- **Proof-of-Bug & fix verification (`app/fix_logic.py`).** A proposed patch is verified against the test suite and re-scanned with static analysis. Once verified, a **counterfactual mutant** (disabling the patch's guard or re-injecting the defective hunk) is tested to prove the reproduction test specifically catches the defect (`proof_of_bug`).
+- **Hardened runtime sandbox (`app/sandbox/runner.py`).** Even in `subprocess` mode, Python's `sys.addaudithook` and Node's Permission Model + network guard restrict **both generated tests and submitted code** from network access, spawning processes, or reading/writing files outside the temporary sandbox directory.
+- **Python and JavaScript** support with extension-, AST-, and token-aware language detection.
 - **Regression mode.** Review the same file again and see which issues are new, fixed or still present.
-- **Web page** with colour-coded findings, a Markdown download and print-to-PDF.
-- **Evaluation harness** that compares four pipeline variants on a labelled benchmark.
+- **Web page** with built-in example presets, colour-coded findings, Proof-of-Bug badges, a Markdown download and print-to-PDF.
+- **Evaluation harness** that compares four pipeline variants on a 50-file labelled benchmark.
 
 ## Quick start
 
