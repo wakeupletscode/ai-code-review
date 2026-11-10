@@ -132,7 +132,7 @@ async def _complete(system: str, user: str) -> tuple:
         text = "".join(b.text for b in resp.content if b.type == "text")
         return text, resp.usage.input_tokens, resp.usage.output_tokens
 
-    from openai import APIConnectionError, AsyncOpenAI, BadRequestError
+    from openai import APIConnectionError, APIStatusError, AsyncOpenAI
 
     if provider == "groq":
         client = AsyncOpenAI(api_key=settings.groq_api_key, base_url="https://api.groq.com/openai/v1")
@@ -146,10 +146,15 @@ async def _complete(system: str, user: str) -> tuple:
     request = {"model": model_name(), "temperature": 0.1,
                "messages": [{"role": "system", "content": system}, {"role": "user", "content": user}]}
     try:
-        try:  # ask for native JSON mode; a provider/model that does not support it gets a plain request
-            resp = await client.chat.completions.create(**request, response_format={"type": "json_object"})
-        except BadRequestError:
+        if provider == "ollama":
+            # Ollama's grammar sampler can hit token-repeat limits on long code strings inside JSON;
+            # plain completion + extract_json() is faster and more reliable for local coder models.
             resp = await client.chat.completions.create(**request)
+        else:
+            try:
+                resp = await client.chat.completions.create(**request, response_format={"type": "json_object"})
+            except APIStatusError:
+                resp = await client.chat.completions.create(**request)
     except APIConnectionError as e:
         raise ConnectionError(_connection_hint(provider)) from e
     usage = getattr(resp, "usage", None)

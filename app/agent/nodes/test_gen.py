@@ -21,8 +21,9 @@ Rules:
 - The file must start with: import pytest, then import target. Every use of pytest.raises needs pytest imported.
 - A test name describes the CORRECT behaviour, never the current buggy behaviour. Do not put words like
   "returns_zero" or "returns_default" in a name when the correct behaviour is to raise an error.
-- If the code should raise an exception on invalid input, the test expects that exception with pytest.raises.
-  A test that expects the buggy result is wrong and must not be written.
+- If the code should raise an exception on invalid input, the test expects that exception with
+  `with pytest.raises(ValueError):` inside the function body (NEVER use `@pytest.raises` as a decorator).
+  A test that expects the buggy result (like ZeroDivisionError) is wrong and must not be written.
 """ + CATEGORY_RULES + """
 - For hardcoded secrets, inspect the source text with open(target.__file__).read().
 - Tests must be deterministic and fast (each test gets a few seconds). Do NOT use network, subprocess, sockets,

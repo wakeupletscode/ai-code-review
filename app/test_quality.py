@@ -58,10 +58,20 @@ def _has_check(fn: ast.AST) -> bool:
     return False
 
 
+def _bad_decorator(fn: ast.AST) -> bool:
+    for dec in getattr(fn, "decorator_list", []):
+        node = dec.func if isinstance(dec, ast.Call) else dec
+        if isinstance(node, ast.Attribute) and isinstance(node.value, ast.Name) and node.value.id == "pytest" \
+                and node.attr == "raises":
+            return True
+    return False
+
+
 def _check_python(test_code: str, code: str) -> tuple:
     tree = ast.parse(test_code)
     tests = [n for n in ast.walk(tree) if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef))
              and n.name.startswith("test_")]
+    bad_dec = [t.name for t in tests if _bad_decorator(t)]
     used = {n.attr for n in ast.walk(tree) if isinstance(n, ast.Attribute)
             and isinstance(n.value, ast.Name) and n.value.id == "target"}
     touches = any(isinstance(n, ast.Name) and n.id == "target" for n in ast.walk(tree))
@@ -73,7 +83,7 @@ def _check_python(test_code: str, code: str) -> tuple:
             touches = True
     used = {u for u in used if not u.startswith("__")}  # target.__file__ etc. always exist
     unchecked = [t.name for t in tests if not _has_check(t)] if used else []
-    return [t.name for t in tests], used, touches, unchecked, _py_names(code)
+    return [t.name for t in tests], used, touches, unchecked, bad_dec, _py_names(code)
 
 
 def _check_javascript(test_code: str, code: str) -> tuple:
@@ -85,13 +95,13 @@ def _check_javascript(test_code: str, code: str) -> tuple:
     ends = [m.start() for m in matches[1:]] + [len(test_code)]
     unchecked = [m.group(2) for m, end in zip(matches, ends, strict=True)
                  if not _JS_ASSERT.search(test_code, m.end(), end)]
-    return names, used, touches, unchecked, _js_names(code)
+    return names, used, touches, unchecked, [], _js_names(code)
 
 
 def check_tests(test_code: str, code: str, language: str, finding_ids: list) -> tuple:
     """Return (problem or "", info). `problem` is a short instruction for the LLM when the file must be rewritten."""
     check = _check_javascript if language == "javascript" else _check_python
-    names, used, touches, unchecked, defined = check(test_code, code)
+    names, used, touches, unchecked, bad_dec, defined = check(test_code, code)
     known = {f.lower() for f in finding_ids}
     linked = [n for n in names if (m := _LINK.match(n)) and m.group(1).lower() in known]
     info = {"tests": len(names), "linked": len(linked),
@@ -100,6 +110,9 @@ def check_tests(test_code: str, code: str, language: str, finding_ids: list) -> 
 
     if not names:
         return "it contains no test functions", info
+    if bad_dec:
+        return (f"test {bad_dec[0]} uses @pytest.raises as a decorator; pytest.raises is not a decorator, "
+                "use 'with pytest.raises(ValueError):' inside the function body"), info
     if not linked:
         return (f"no test is linked to a finding; name every test test_<finding_id>_<category>_<description> "
                 f"using these ids: {', '.join(sorted(known))}"), info
