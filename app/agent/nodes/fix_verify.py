@@ -36,7 +36,7 @@ async def fix_verify_node(state):
     confirmed = [f for f in findings if f["id"] in failing]
     listing = "\n".join(f"- {f['id']} (line {f['line']}): {f['title']} -- {f['explanation']}. Suggested fix: {f['fix']}"
                         for f in confirmed)
-    user = f"CODE:\n{number_lines(code)}\n\nCONFIRMED DEFECTS:\n{listing}"
+    user = f"CODE:\n{number_lines(code)}\n\nCONFIRMED DEFECTS:\n{listing}\n\nTESTS TO SATISFY:\n{state['test_code']}"
 
     fixed, reason = "", ""
     for _ in range(2):

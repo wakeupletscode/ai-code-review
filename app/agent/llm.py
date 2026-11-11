@@ -10,7 +10,7 @@ from urllib.parse import urlparse
 from app.core.config import settings
 
 DEFAULT_MODELS = {
-    "groq": "llama-3.3-70b-versatile",
+    "groq": "openai/gpt-oss-120b",
     "gemini": "gemini-2.5-flash",
     "ollama": "qwen2.5-coder:7b",
     "openai": "gpt-4o-mini",
